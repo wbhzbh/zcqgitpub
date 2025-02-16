@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>节日快乐 - 烟花模拟</title>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: black;
+        }
+        canvas {
+            display: block;
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+        .adaptive-media {
+            max-width: 90%;
+            max-height: 90%;
+            width: auto;
+            height: auto;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+        #theme, #greeting {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: gold;
+            text-align: center;
+            font-family: 'Arial', sans-serif;
+            opacity: 0;
+            transition: opacity 2s ease-in-out;
+        }
+        #theme {
+            font-size: 4em;
+            font-weight: bold;
+            font-family: 'Pacifico', cursive;
+            text-shadow: 2px 2px 10px rgba(255, 255, 0, 0.5);
+        }
+        #greeting {
+            font-size: 1.5em;
+            margin-top: 20px;
+        }
+        #mediaControls {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            z-index: 10;
+        }
+        #mediaControls button {
+            background-color: rgba(0, 0, 0, 0.7);
+            color: white;
+            border: none;
+            padding: 10px;
+            margin: 5px;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+        /* 媒体播放窗口在中间 */
+        #mediaContainer {
+            position: absolute;
+            bottom: 10%;
+            right: 5%;
+            width: 90vw; /* 使用视口宽度单位 */
+            height: 80vh; /* 使用视口高度单位 */
+            background-color: rgba(0, 0, 0, 0.7);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            text-align: center;
+        }
+        #closeButton {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background-color: rgba(0, 0, 0, 0.7);
+            color: white;
+            border: none;
+            padding: 5px;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+    </style>
+    <link href="https://fonts.googleapis.com/css2?family=Pacifico&display=swap" rel="stylesheet">
+</head>
+<body>
+
+<canvas id="fireworksCanvas"></canvas>
+<div id="theme">XXX, 节日快乐！</div>
+<div id="greeting" style="display:none;">
+    <p>愿这个美好的时刻带给您无尽的喜悦与温馨。</p>
+    <p>幸福长伴，梦想成真！</p>
+    <p>新的一年里，健康与好运与您同行。</p>
+    <p>祝您节日快乐，阖家幸福，万事如意。</p>
+</div>
+<div id="mediaControls">
+    <button onclick="showMedia('video')">播放视频</button>
+    <button onclick="showMedia('audio')">播放音乐</button>
+    <button onclick="showMedia('image')">显示图片</button>
+</div>
+<div id="mediaContainer">
+    <button id="closeButton" onclick="hideMedia()">关闭</button>
+    <div id="mediaContent"></div>
+</div>
+
+<!-- 背景音乐 -->
+<!-- <audio id="backgroundMusic" autoplay loop>
+    <source src="https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3" type="audio/mpeg">
+    您的浏览器不支持 audio 元素。
+</audio>
+ -->
+<script>
+    // 获取画布元素并初始化上下文
+    const canvas = document.getElementById('fireworksCanvas');
+    const ctx = canvas.getContext('2d');
+
+    // 调整画布大小以适应窗口
+    function resizeCanvas() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+    }
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
+    // 生成随机数函数
+    function random(min, max) {
+        return Math.random() * (max - min) + min;
+    }
+
+    // 定义颜色数组
+    const colors = [0, 30, 60, 90, 120, 150, 180, 210, 240, 270, 300, 330];
+
+    // 定义粒子类
+    class Particle {
+        constructor(x, y, hue, angle, speed, gravity, centerX, centerY, isRainbow) {
+            this.x = x;
+            this.y = y;
+            this.hue = hue;
+            this.brightness = 60;
+            this.alpha = 1;
+            this.decayFactor = 0.02;
+            this.angle = angle;
+            this.speed = speed;
+            this.gravity = gravity;
+            this.size = Math.random() * 2 + 1;
+            this.centerX = centerX;
+            this.centerY = centerY;
+            this.creationTime = Date.now();
+            this.trail = [];
+            this.isRainbow = isRainbow;
+        }
+
+        update() {
+            if ((Date.now() - this.creationTime) > 3000) return false;
+            this.speed *= 0.96;
+            this.x += Math.cos(this.angle) * this.speed;
+            this.y += Math.sin(this.angle) * this.speed + this.gravity;
+            const distanceFromCenter = Math.sqrt(Math.pow(this.x - this.centerX, 2) + Math.pow(this.y - this.centerY, 2));
+            this.alpha -= this.decayFactor * (1 / (distanceFromCenter / 50 + 1));
+            this.alpha = Math.max(0, this.alpha);
+
+            this.trail.push({ x: this.x, y: this.y });
+            if (this.trail.length > 10) this.trail.shift();
+
+            return true;
+        }
+
+        draw() {
+            let hueToUse = this.hue;
+            if (this.isRainbow) hueToUse = colors[Math.floor(random(0, colors.length))];
+
+            ctx.fillStyle = `hsla(${hueToUse}, 100%, ${this.brightness}%, ${this.alpha})`;
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+            ctx.closePath();
+            ctx.fill();
+
+            for (let i = 0; i < this.trail.length; i++) {
+                ctx.fillStyle = `hsla(${hueToUse}, 100%, ${this.brightness}%, ${this.alpha * (i / this.trail.length)})`;
+                ctx.beginPath();
+                ctx.arc(this.trail[i].x, this.trail[i].y, this.size, 0, Math.PI * 2);
+                ctx.closePath();
+                ctx.fill();
+            }
+        }
+    }
+
+    // 定义烟花类
+    class Firework {
+        constructor(centerX, centerY) {
+            this.centerX = centerX;
+            this.centerY = centerY;
+            this.particles = [];
+            this.explode();
+        }
+
+        explode() {
+            const count = random(200, 300);
+            const hue = colors[Math.floor(random(0, colors.length))];
+            const isRainbow = Math.random() < 0.05;
+
+            for (let i = 0; i < count; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                const speed = random(5, 10);
+                const gravity = random(0.1, 0.5);
+                this.particles.push(new Particle(this.centerX, this.centerY, hue, angle, speed, gravity, this.centerX, this.centerY, isRainbow));
+            }
+        }
+
+        draw() {
+            this.particles = this.particles.filter(particle => particle.update());
+            this.particles.forEach(particle => particle.draw());
+        }
+    }
+
+    const fireworks = [];
+
+    // 动画循环
+    function animate() {
+        ctx.globalCompositeOperation = 'destination-out';
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.globalCompositeOperation = 'lighter';
+
+        if (Math.random() < 2 / 60) {
+            const centerX = random(0, canvas.width);
+            const centerY = random(0, canvas.height);
+            fireworks.push(new Firework(centerX, centerY));
+        }
+
+        fireworks.forEach(firework => firework.draw());
+
+        requestAnimationFrame(animate);
+    }
+
+    animate();
+
+    // 显示主题和问候语
+    setTimeout(() => {
+        document.getElementById('theme').style.opacity = 1;
+        setTimeout(() => {
+            document.getElementById('theme').style.opacity = 0;
+            setTimeout(() => {
+                document.getElementById('greeting').style.display = 'block';
+                document.getElementById('greeting').style.opacity = 1;
+            }, 500);
+        }, 5000);
+    }, 1000);
+
+    // 图片轮播相关变量
+    const images = [
+        'https://gitee.com/gitzcqmajor666/remote-gitee-test/raw/master/picture/1.jpg',
+        'https://gitee.com/gitzcqmajor666/remote-gitee-test/raw/master/picture/2.jpg',
+        'https://gitee.com/gitzcqmajor666/remote-gitee-test/raw/master/picture/3.jpg',
+        'https://gitee.com/gitzcqmajor666/remote-gitee-test/raw/master/picture/7.jpg',
+        'https://gitee.com/gitzcqmajor666/remote-gitee-test/raw/master/picture/9.jpg',
+
+    ];
+    let currentImageIndex = 0;
+    let imageInterval;
+
+    // 切换图片函数
+    function rotateImages(imgElement) {
+        currentImageIndex = (currentImageIndex + 1) % images.length;
+        imgElement.src = images[currentImageIndex];
+    }
+
+    // 显示媒体内容
+    function showMedia(type) {
+        const mediaContent = document.getElementById('mediaContent');
+        mediaContent.innerHTML = ''; // 清空之前的媒体内容
+
+        if (type === 'video') {
+            const video = document.createElement('video');
+            video.controls = true;
+            video.src = 'https://gitee.com/gitzcqmajor666/remote-gitee-test/raw/master/heiheihei.mp4'; // 确保路径正确
+            video.addEventListener('ended', () => hideMedia());
+            video.classList.add('adaptive-media'); // 添加类名以应用样式
+            mediaContent.appendChild(video);
+            video.play();
+        } else if (type === 'audio') {
+            const audio = document.createElement('audio');
+            audio.controls = true;
+            audio.src = ' https://gitee.com/gitzcqmajor666/remote-gitee-test/raw/master/海边探戈.mp3';
+           
+            mediaContent.appendChild(audio);
+            audio.play();
+        } else if (type === 'image') {
+            const img = document.createElement('img');
+            img.src = images[currentImageIndex]; // 初始化显示第一张图片
+            img.classList.add('adaptive-media'); // 添加类名以应用样式
+            mediaContent.appendChild(img);
+
+            // 自动开始轮播
+            clearInterval(imageInterval); // 清除之前的定时器
+            imageInterval = setInterval(() => {
+                rotateImages(img);
+            }, 3000); // 每3秒切换一次图片
+
+            // 添加事件监听器，鼠标悬停时暂停轮播，移开时恢复轮播
+            img.addEventListener('mouseenter', () => {
+                clearInterval(imageInterval);
+            });
+
+            img.addEventListener('mouseleave', () => {
+                imageInterval = setInterval(() => {
+                    rotateImages(img);
+                }, 3000); // 每3秒切换一次图片
+            });
+        }
+
+        document.getElementById('mediaContainer').style.display = 'flex';
+        document.getElementById('mediaContainer').style.justifyContent = 'center';
+        document.getElementById('mediaContainer').style.alignItems = 'center';
+    }
+
+    // 隐藏媒体内容
+    function hideMedia() {
+        const mediaContent = document.getElementById('mediaContent');
+        mediaContent.innerHTML = '';
+        document.getElementById('mediaContainer').style.display = 'none';
+
+        const videos = document.querySelectorAll('video');
+        videos.forEach(video => video.pause());
+
+        // 不需要暂停背景音乐
+        // 背景音乐将继续播放
+
+        clearInterval(imageInterval); // 清除图片轮播定时器
+    }
+</script>
+</body>
+</html>
